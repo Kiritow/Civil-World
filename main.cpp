@@ -6,12 +6,37 @@
 #include <cpplib/cpplib#gcolor>
 #include <queue>
 #include <vector>
+#include <string>
 using namespace std;
+
+typedef int (*IFUNCV)(void);
 
 struct pos
 {
     int x,y;
+    pos(int ix,int iy):x(ix),y(iy){}
+    pos(){x=1;y=1;}
 };
+struct icon
+{
+    color f,b;
+    char c;
+    icon(color incf,color incb,char ic):f(incf),b(incb),c(ic){}
+    icon(){f=color::white;b=color::black;c='X';}
+};
+struct bigicon
+{
+    color f,b;
+    int w,h;
+};
+struct unitinfo
+{
+    string name;/// Unit Name ( Mostly named as TypeString, can be defined by user. Example: `Solider` or `My Little Cat`)
+    int type;/// unit Type ( 0 Solider 1 Armored Car 2 Tank 3 Plane 4 Missile)
+    string techname;/// The name of production Technology
+    int uid;///(Belongs to ...)
+};
+
 int direct(int dis)
 {
     return dis>0?1:dis<0?-1:0;
@@ -86,7 +111,9 @@ void p()
 }
 
 #define readonly_p(Type,Name) protected:Type Name;public:Type get##Name(){return Name;}
+#define readonly(Type,Name) private:Type Name;public:Type get##Name(){return Name;}
 #define datarw_p(Type,Name) protected:Type Name;public:Type get##Name(){return Name;} void set##Name(Type i##Name){Name=i##Name;}
+#define datarw(Type,Name) private:Type Name;public:Type get##Name(){return Name;} void set##Name(Type i##Name){Name=i##Name;}
 
 class engine
 {
@@ -102,7 +129,6 @@ protected:
 
 class armor
 {
-public:
     datarw_p(int,maxhp);
     datarw_p(int,hp);
 };
@@ -166,6 +192,10 @@ public:
         }
         return cque.front();
     }
+    void dotask()
+    {
+        if(thandle) thandle();
+    }
     void donenextpos()
     {
         if(cque.size()>0)
@@ -216,14 +246,44 @@ protected:
     color cc;
     int isloop;
     engine eng;
+    IFUNCV thandle;
 };
 
 class unit : public moveable
 {
+public:
+    unit()
+    {
+        lockedtarget=nullptr;
+        thandle=reinterpret_cast<IFUNCV>(&_callback_focus);
+    }
+    weapon* getweapon(){return &wp;}
+    armor* getarmor(){return &ar;}
+    radar* getradar(){return &rd;}
+    unitinfo* getinfo(){return &ifo;}
+    int lockon(unit* target)
+    {
+        lockedtarget=target;
+        return 0;
+    }
+    void freelock()
+    {
+        lockedtarget=nullptr;
+    }
+    int _callback_focus()
+    {
+        if(!lockedtarget) return 0;
+        clear();
+        addpos(lockedtarget->getpos());
+        start();
+        return 1;
+    }
 protected:
+    unitinfo ifo;
     weapon wp;
     armor ar;
     radar rd;
+    unit* lockedtarget;
 };
 
 class mapcontrol
@@ -251,6 +311,9 @@ public:
     {
         for(size_t i=0; i<vec.size(); i++)
         {
+            /// Update Position Queue
+            vec.at(i)->dotask();
+
             pos cur=vec.at(i)->getpos();
             pos target=vec.at(i)->getnextpos();
             cur=go(cur,target,vec.at(i)->getspeed());
@@ -277,6 +340,12 @@ private:
     vector<moveable*> vec;
 };
 
+
+unit x;
+unit y;
+unit z;
+unit xx;
+
 int main()
 {
     cprint(CHIDE);
@@ -293,7 +362,7 @@ int main()
     k.x=36;
     k.y=10;
 
-    moveable x;
+
     x.setpos(a);
     x.addpos(v);
     x.addpos(t);
@@ -301,7 +370,6 @@ int main()
     x.setloop(1);
     x.setengine(engine(3));
 
-    moveable y;
     y.setpos(t);
     y.addpos(t);
     y.addpos(v);
@@ -309,7 +377,6 @@ int main()
     y.setengine(engine(2));
     y.setcolor(color::blue);
 
-    moveable z;
     z.setpos(k);
     z.addpos(k);
     z.addpos(a);
@@ -317,13 +384,20 @@ int main()
     z.addpos(t);
     z.setloop(1);
     z.setcolor(color::red);
-    z.setengine(engine(2));
+    z.setengine(engine(3));
 
+
+    xx.setpos(k);
+    xx.lockon(&z);
+    xx.setengine(engine(2));
+    xx.setloop(1);
+    xx.setcolor(color::lightblue);
 
     mapcontrol m;
     m.regist(&x);
     m.regist(&y);
     m.regist(&z);
+    m.regist(&xx);
     while(1)
     {
         m.tick();
@@ -331,4 +405,6 @@ int main()
         //gotoxy(1,1);cprint();printf("a: %d %d\n",x.getpos().x,x.getpos().y);
         p();
     }
+
+    return 0;
 }
